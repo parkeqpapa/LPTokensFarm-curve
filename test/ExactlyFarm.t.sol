@@ -8,20 +8,9 @@ import "forge-std/console.sol";
 import "../src/usdcmarket.sol";
 import "../src/rewards.sol";
 import "../src/IUniv3.sol";
-
-interface IERC20 {
-    function balanceOf(address) external view returns (uint256);
-
-    function approve(address spender, uint256 amount) external returns (bool);
-
-    function transfer(address to, uint256 amount) external returns (bool);
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
-}
+import "../src/IVelodromeRouter.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 contract ExactlyFarm is Test {
     using stdStorage for StdStorage;
@@ -40,8 +29,8 @@ contract ExactlyFarm is Test {
     IUniV3 public constant uniswap =
         IUniV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
 
-    uint24 internal constant uniFeeWETH = 3_000;
-    uint24 internal constant uniFeeUSDC = 500;
+    IVelodromeRouter public constant router =
+        IVelodromeRouter(0x9c12939390052919aF3155f41Bf4160Fd3666A6f);
 
     function WriteTokenBalance(
         address who,
@@ -68,7 +57,7 @@ contract ExactlyFarm is Test {
     }
 
     function test_farm_exactly() public {
-        WriteTokenBalance(address(this), address(usdc), 10_000 * 1e18);
+        WriteTokenBalance(address(this), address(usdc), 100 * 1e18);
         getBalances();
 
         uint256 usdc_bal = usdc.balanceOf(address(this));
@@ -85,26 +74,20 @@ contract ExactlyFarm is Test {
 
         rewards.claimAll(address(this));
         exactly.redeem(exa_bal, address(this), address(this));
+        op.approve(address(router), type(uint256).max);
 
         uint256 op_bal = op.balanceOf(address(this));
-
-        op.approve(address(uniswap), type(uint256).max);
-
         getBalances();
-        IUniV3(uniswap).exactInput(
-            IUniV3.ExactInputParams(
-                abi.encodePacked(
-                    address(op),
-                    uniFeeWETH,
-                    address(weth),
-                    uniFeeUSDC,
-                    address(usdc)
-                ),
-                address(this),
-                block.timestamp,
-                1000,
-                uint256(1)
-            )
+
+        router.swapExactTokensForTokensSimple(
+            op_bal,
+            0,
+            address(op),
+            address(usdc),
+            false,
+            address(this),
+            block.timestamp
         );
+        console.log("final USDC", usdc.balanceOf(address(this)));
     }
 }
