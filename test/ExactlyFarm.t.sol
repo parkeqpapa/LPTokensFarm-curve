@@ -28,7 +28,6 @@ contract ExactlyFarm is Test {
         RewardsController(0xBd1ba78A3976cAB420A9203E6ef14D18C2B2E031);
     IUniV3 public constant uniswap =
         IUniV3(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
-
     IVelodromeRouter public constant router =
         IVelodromeRouter(0x9c12939390052919aF3155f41Bf4160Fd3666A6f);
 
@@ -67,10 +66,15 @@ contract ExactlyFarm is Test {
         exactly.deposit(usdc_bal, address(this));
 
         uint256 exa_bal = exactly.balanceOf(address(this));
+        uint256 exausdc_to_USDC = exactly.convertToAssets(exa_bal);
+
+        skip(2 days);
 
         getBalances();
+        console.log("max reedem", exactly.maxRedeem(address(this)));
+        console.log("lp tokens converted to USDC", exausdc_to_USDC);
 
-        skip(1 days);
+        skip(300 days);
 
         rewards.claimAll(address(this));
         exactly.redeem(exa_bal, address(this), address(this));
@@ -89,5 +93,29 @@ contract ExactlyFarm is Test {
             block.timestamp
         );
         console.log("final USDC", usdc.balanceOf(address(this)));
+    }
+
+    function test_simulate_earning_yield() public {
+        deal(address(exactly), address(this), 10 * 1e6);
+        deal(address(op), address(this), 10 * 1e18);
+
+        console.log("deal work?", exactly.balanceOf(address(this)));
+        exactly.redeem(
+            exactly.balanceOf(address(this)),
+            address(this),
+            address(this)
+        );
+        op.approve(address(router), type(uint256).max);
+        router.swapExactTokensForTokensSimple(
+            op.balanceOf(address(this)),
+            0,
+            address(op),
+            address(usdc),
+            false,
+            address(this),
+            block.timestamp
+        );
+
+        getBalances();
     }
 }
